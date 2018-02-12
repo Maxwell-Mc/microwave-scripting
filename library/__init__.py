@@ -1,1 +1,1 @@
-__author__ = yfausr
+__author__ = 'yfausr'

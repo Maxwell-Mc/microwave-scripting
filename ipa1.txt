@@ -1,0 +1,99 @@
+!
+!
+!
+show run interface TenGigE0/6/0/2.160
+show run interface TenGigE0/6/0/2.161
+show run interface Bundle-Ether10.160 l2transport
+show run interface Bundle-Ether10.161 l2transport
+show run interface TenGigE0/6/0/2.1704
+show run interface TenGigE0/6/0/2.1705
+show run interface TenGigE0/6/0/2.2504
+show run interface TenGigE0/6/0/2.2505
+!
+show run router static | i 211.12.4.0/30
+show run router static | i 111.12.80.0/30
+show run router static | i 10.145.128.48/30
+show run router static | i 111.12.80.32/30
+show run router static | i 111.12.250.124
+show run router static | i 111.12.250.112
+show run router static | i 111.12.250.128
+!
+!
+!
+!
+interface TenGigE0/6/0/2.1704
+description TO-WLS-S OAM Vlan to site CLELWAAM-BHRS-1 VIA DONOR ELBGWA06-BHRS-1
+vrf sat-exdmzipv4 address 211.12.4.32 255.255.255.254
+encapsulation dot1q 160 second-dot1q 1704
+service-policy input wls-edge-in
+service-policy output aav-200m-downstream shared-policy-instance evc160
+no shut
+!
+interface TenGigE0/6/0/2.2504
+description TO-WLS-S S&B Vlan to site CLELWAAM-BHRS-1 VIA DONOR ELBGWA06-BHRS-1
+vrf cdn-infraipv4 address 211.12.4.40 255.255.255.254
+encapsulation dot1q 160 second-dot1q 2504
+service-policy input wls-edge-in
+service-policy output aav-200m-downstream shared-policy-instance evc160
+no shut
+!
+router static
+vrf sat-exdmz
+address-family ipv4 unicast
+111.254.241.12/32 TenGigE0/6/0/2.1704 211.12.4.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description CSR_MGM_CLELWAAM-CSR-01
+111.12.250.120/30 TenGigE0/6/0/2.2172 211.12.141.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description DW_MGM_ESTNWAAB-MWNE-1-1
+111.12.250.124/30 TenGigE0/6/0/2.1704 211.12.4.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description DW_MGM_CLELWAAM-MWNE-2-1
+111.12.250.112/30 TenGigE0/6/0/2.1704 211.12.4.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description DW_MGM_CLELWAAM-MWNE-3-1
+111.12.250.128/30 TenGigE0/6/0/2.1704 211.12.4.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description DW_MGM_CLELWAAM-MWNE-1-1
+111.12.80.32/30 TenGigE0/6/0/2.2504 211.12.4.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description eNB1_OAM_CLELWAAM-CSR-01
+111.12.80.0/30 TenGigE0/6/0/2.2504 211.12.4.33 bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description MMBS_OAM_CLELWAAM-CSR-01
+!
+vrf cdn-infra
+address-family ipv4 unicast
+10.145.128.48/30 TenGigE0/6/0/2.2504 211.12.4.41 250 tag 200 description eNB1_S&B_CLELWAAM-CSR-01
+211.12.4.0/30 TenGigE0/6/0/2.2504 211.12.4.41 250 tag 200 description MMBS_S&B_CLELWAAM-CSR-01
+!
+interface TenGigE0/7/0/2.1704 l2transport
+description TO-WLS-S Primary Qscope VLAN to CLELWAAM-CSR-01
+encapsulation dot1q 1704
+!
+interface TenGigE0/7/0/2.1705 l2transport
+description TO-WLS-S Secondary Qscope VLAN to CLELWAAM-CSR-01
+encapsulation dot1q 1705
+!
+interface Bundle-Ether10.1704 l2transport
+description TO-WLS-S Qscope Primary VLAN to CLELWAAM-CSR-01 inter chassis connectivity
+encapsulation dot1q 1704
+!
+interface Bundle-Ether10.1705 l2transport
+description TO-WLS-S Qscope Secondary VLAN to CLELWAAM-CSR-01 inter chassis connectivity
+encapsulation dot1q 1705
+!
+interface TenGigE0/6/0/2.1704 l2transport
+description TO-WLS-S Primary Qscope VLAN to CLELWAAM-CSR-01
+encapsulation dot1q 104 second-dot1q 1704
+rewrite ingress tag pop 1 symmetric
+service-policy input wls-edge-in
+service-policy output aav-200m-downstream shared-policy-instance evc104
+!
+l2vpn
+bridge group QSCOPE
+bridge-domain QSCOPE-1704
+interface TenGigE0/7/0/2.1704 
+interface TenGigE0/6/0/2.1704
+interface Bundle-Ether10.1704
+storm-control multicast pps 20
+storm-control broadcast pps 20
+storm-control unknown-unicast pps 20
+!
+bridge-domain QSCOPE-1705
+interface TenGigE0/7/0/2.1705
+interface Bundle-Ether10.1705
+storm-control multicast pps 20
+storm-control broadcast pps 20
+storm-control unknown-unicast pps 20
+!
+
+
+
+

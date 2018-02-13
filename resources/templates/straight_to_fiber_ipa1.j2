@@ -1,0 +1,141 @@
+!
+!
+!
+{% set isNotSetBH = true %}
+{%- for item in ip_plan['4G IP Plan'] -%}
+{%- if item['BH EVC VLAN-IPA1'] != None  and isNotSetBH -%}
+show run interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH EVC VLAN-IPA1'] }}
+show run interface {{ item['EVC IPA 2 Port'] }}.{{ item['BH EVC VLAN-IPA2'] }}
+show run interface Bundle-Ether10.{{ item['BH EVC VLAN-IPA1'] }} l2transport
+show run interface Bundle-Ether10.{{ item['BH EVC VLAN-IPA2'] }} l2transport
+show run interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH OAM VLAN-IPA1'] }}
+show run interface {{ item['EVC IPA 2 Port'] }}.{{ item['BH OAM VLAN-IPA2'] }}
+show run interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH Bearer VLAN-IPA1'] }}
+show run interface {{ item['EVC IPA 2 Port'] }}.{{ item['BH Bearer VLAN-IPA2'] }}
+!
+{% for mmbs in ip_plan['3G IP Plan'] %}
+{%- if mmbs['CDN Vlan 24  /30 Network segments'] != None -%}
+show run router static | i {{ mmbs['CDN Vlan 24  /30 Network segments'] }}
+{% endif %}
+{%- if mmbs['OAM Vlan 16  /30 Network segments'] != None -%}
+show run router static | i {{ mmbs['OAM Vlan 16  /30 Network segments'] }}
+{%- endif -%}
+{%- endfor -%}
+{%- for mmbs in ip_plan['4G IP Plan'] -%}
+{% if mmbs['MMBS LTE BBU#1 sig&bearer VLAN 40  \n prefix (/30)'] != None %}
+show run router static | i {{ mmbs['MMBS LTE BBU#1 sig&bearer VLAN 40  \n prefix (/30)'] }}
+{%- endif -%}
+{% if mmbs['MMBS LTE BBU#1 OAM                            prefix (/30)'] != None %}
+show run router static | i {{ mmbs['MMBS LTE BBU#1 OAM                            prefix (/30)'] }}
+{%- endif -%}
+{%- endfor -%}
+{%- for modem in ciq -%}
+{% if modem['MW\nmgmt IP  prefix'] != None %}
+show run router static | i {{ modem['MW\nmgmt IP  prefix'] }}
+{%- endif -%}
+{%- endfor %}
+!
+!
+!
+!
+interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH OAM VLAN-IPA1'] }}
+description TO-WLS-S OAM Vlan to site {{ item['CSR Hostname'] }} VIA DONOR {{ item['Donor'] }}
+vrf sat-exdmz
+{%- set ip_mask = item['IP address of OAM VLAN  - IPA1'].split('/') -%}
+{%- if item['EVC Type'] == 'PtoP' -%}
+ipv4 address {{ ip_mask[0] }} 255.255.255.254
+{%- elif item['EVC Type'] == 'PtoMP' -%}
+ipv4 address {{ ip_mask[0] }} 255.255.255.248
+{% endif %}
+encapsulation dot1q {{ item['BH EVC VLAN-IPA1'] }} second-dot1q {{ item['BH OAM VLAN-IPA1'] }}
+service-policy input wls-edge-in
+service-policy output aav-{{ item['EVC BW'] }}m-downstream shared-policy-instance evc{{ item['BH EVC VLAN-IPA1'] }}
+no shut
+!
+interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH Bearer VLAN-IPA1'] }}
+description TO-WLS-S S&B Vlan to site {{ item['CSR Hostname'] }} VIA DONOR {{ item['Donor'] }}
+vrf cdn-infra
+{%- set ip_mask = item['IP address of bearer  VLAN - IPA1'].split('/') -%}
+{%- if item['EVC Type'] == 'PtoP' -%}
+ipv4 address {{ ip_mask[0] }} 255.255.255.254
+{%- elif item['EVC Type'] == 'PtoMP' -%}
+ipv4 address {{ ip_mask[0] }} 255.255.255.248
+{% endif %}
+encapsulation dot1q {{ item['BH EVC VLAN-IPA1'] }} second-dot1q {{ item['BH Bearer VLAN-IPA1'] }}
+service-policy input wls-edge-in
+service-policy output aav-{{ item['EVC BW'] }}m-downstream shared-policy-instance evc{{ item['BH EVC VLAN-IPA1'] }}
+no shut
+!
+router static
+vrf sat-exdmz
+address-family ipv4 unicast
+{%- set hostname_arr = item['CSR Hostname'].split('-') -%}
+{% set oam_csr_ip = item['IP address of OAM VLAN - CSR (to IPA1)'].split('/') %}
+{{ item['IP address of the CSR mgmt']}} {{ item['EVC IPA 1 Port'] }}.{{ item['BH OAM VLAN-IPA1'] }} {{ oam_csr_ip[0] }} bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description CSR_MGM_{{ hostname_arr[0] }}-CSR-01
+{% for mwa in ip_plan['a-side']['ciq'] %}
+{%- if mwa['MW\nmgmt IP  prefix'] != None -%}
+{%- for g in ip_plan['a-side']['4G IP Plan'] -%}
+{% if g['BH OAM VLAN-IPA1'] != None %}
+{%- set oam_aside_ip = g['IP address of OAM VLAN - CSR (to IPA1)'].split('/') -%}
+{{ mwa['MW\nmgmt IP  prefix']}}/30 {{ g['EVC IPA 1 Port'] }}.{{ g['BH OAM VLAN-IPA1'] }} {{ oam_aside_ip[0] }} bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description DW_MGM_{{ mwa['MW Hostname']}}
+{% endif %}
+{%- endfor -%}
+{% endif %}
+{%- endfor -%}
+{% for mw in ciq %}
+{%- if mw['MW\nmgmt IP  prefix'] != None -%}
+{{ mw['MW\nmgmt IP  prefix']}}/30 {{ item['EVC IPA 1 Port'] }}.{{ item['BH OAM VLAN-IPA1'] }} {{ oam_csr_ip[0] }} bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description DW_MGM_{{ mw['MW Hostname']}}
+{% endif %}
+{%- endfor -%}
+{{ item['MMBS LTE BBU#1 OAM                            prefix (/30)']}} {{ item['EVC IPA 1 Port'] }}.{{ item['BH Bearer VLAN-IPA1'] }} {{ oam_csr_ip[0] }} bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description eNB1_OAM_{{ hostname_arr[0] }}-CSR-01
+{{ ip_plan['3G IP Plan'][0]['OAM Vlan 16  /30 Network segments']}} {{ item['EVC IPA 1 Port'] }}.{{ item['BH Bearer VLAN-IPA1'] }} {{ oam_csr_ip[0] }} bfd fast-detect minimum-interval 400 multiplier 3 250 tag 200 description MMBS_OAM_{{ hostname_arr[0] }}-CSR-01
+!
+vrf cdn-infra
+address-family ipv4 unicast
+{%- set cdn_csr_ip = item['IP address of bearer VLAN - CSR'].split('/') %}
+{{ item['MMBS LTE BBU#1 sig&bearer VLAN 40  \n prefix (/30)']}} {{ item['EVC IPA 1 Port'] }}.{{ item['BH Bearer VLAN-IPA1'] }} {{ cdn_csr_ip[0] }} 250 tag 200 description eNB1_S&B_{{ hostname_arr[0] }}-CSR-01
+{{ ip_plan['3G IP Plan'][0]['CDN Vlan 24  /30 Network segments']}} {{ item['EVC IPA 1 Port'] }}.{{ item['BH Bearer VLAN-IPA1'] }} {{ cdn_csr_ip[0] }} 250 tag 200 description MMBS_S&B_{{ hostname_arr[0] }}-CSR-01
+!
+interface {{ qscope }}.{{ item['BH OAM VLAN-IPA1'] }} l2transport
+description TO-WLS-S Primary Qscope VLAN to {{ hostname_arr[0] }}-CSR-01
+encapsulation dot1q {{ item['BH OAM VLAN-IPA1'] }}
+!
+interface {{ qscope }}.{{ item['BH OAM VLAN-IPA2'] }} l2transport
+description TO-WLS-S Secondary Qscope VLAN to {{ hostname_arr[0] }}-CSR-01
+encapsulation dot1q {{ item['BH OAM VLAN-IPA2'] }}
+!
+interface Bundle-Ether10.{{ item['BH OAM VLAN-IPA1'] }} l2transport
+description TO-WLS-S Qscope Primary VLAN to {{ hostname_arr[0] }}-CSR-01 inter chassis connectivity
+encapsulation dot1q {{ item['BH OAM VLAN-IPA1'] }}
+!
+interface Bundle-Ether10.{{ item['BH OAM VLAN-IPA2'] }} l2transport
+description TO-WLS-S Qscope Secondary VLAN to {{ hostname_arr[0] }}-CSR-01 inter chassis connectivity
+encapsulation dot1q {{ item['BH OAM VLAN-IPA2'] }}
+!
+interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH OAM VLAN-IPA1'] }} l2transport
+description TO-WLS-S Primary Qscope VLAN to {{ hostname_arr[0] }}-CSR-01
+encapsulation dot1q {{ item['Q-Scope VLAN-IPA1'] }} second-dot1q {{ item['BH OAM VLAN-IPA1'] }}
+rewrite ingress tag pop 1 symmetric
+service-policy input wls-edge-in
+service-policy output aav-{{ item['EVC BW'] }}m-downstream shared-policy-instance evc{{ item['Q-Scope VLAN-IPA1'] }}
+!
+l2vpn
+bridge group QSCOPE
+bridge-domain QSCOPE-{{ item['BH OAM VLAN-IPA1'] }}
+interface {{ qscope }}.{{ item['BH OAM VLAN-IPA1'] }} 
+interface {{ item['EVC IPA 1 Port'] }}.{{ item['BH OAM VLAN-IPA1'] }}
+interface Bundle-Ether10.{{ item['BH OAM VLAN-IPA1'] }}
+storm-control multicast pps 20
+storm-control broadcast pps 20
+storm-control unknown-unicast pps 20
+!
+bridge-domain QSCOPE-{{ item['BH OAM VLAN-IPA2'] }}
+interface {{ qscope }}.{{ item['BH OAM VLAN-IPA2'] }}
+interface Bundle-Ether10.{{ item['BH OAM VLAN-IPA2'] }}
+storm-control multicast pps 20
+storm-control broadcast pps 20
+storm-control unknown-unicast pps 20
+!
+{% endif %}
+{% endfor %}
+
